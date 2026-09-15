@@ -65,20 +65,26 @@ class LLMClient:
         )
         return response.choices[0].message.content
 
+    def _google_headers(self) -> dict:
+        """AQ.-prefixed Google AI Studio 'authorization keys' must be sent via
+        the x-goog-api-key header, not the old ?key= query parameter that
+        legacy AIza-format keys used."""
+        return {
+            "Content-Type": "application/json",
+            "x-goog-api-key": settings.GOOGLE_API_KEY,
+        }
+
     def _complete_google(self, system: str, prompt: str, max_tokens: int) -> str:
         """Uses Google's free-tier Gemini API via plain REST (no extra SDK dependency)."""
         import requests
 
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-flash:generateContent?key={settings.GOOGLE_API_KEY}"
-        )
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
         body = {
             "system_instruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"maxOutputTokens": max_tokens},
         }
-        response = requests.post(url, json=body, timeout=60)
+        response = requests.post(url, json=body, headers=self._google_headers(), timeout=60)
         response.raise_for_status()
         data = response.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]
@@ -104,16 +110,13 @@ class LLMClient:
     def _embed_google(self, text: str) -> list[float]:
         import requests
 
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-embedding-001:embedContent?key={settings.GOOGLE_API_KEY}"
-        )
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
         body = {
             "model": "models/gemini-embedding-001",
             "content": {"parts": [{"text": text}]},
             "outputDimensionality": settings.EMBEDDING_DIM,
         }
-        response = requests.post(url, json=body, timeout=60)
+        response = requests.post(url, json=body, headers=self._google_headers(), timeout=60)
         response.raise_for_status()
         return response.json()["embedding"]["values"]
 

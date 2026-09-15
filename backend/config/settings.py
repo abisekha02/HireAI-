@@ -137,7 +137,8 @@ SPECTACULAR_SETTINGS = {
 # --- LLM / AI configuration -------------------------------------------------
 ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
-LLM_PROVIDER = config("LLM_PROVIDER", default="anthropic")  # anthropic | openai
+GOOGLE_API_KEY = config("GOOGLE_API_KEY", default="")
+LLM_PROVIDER = config("LLM_PROVIDER", default="anthropic") # anthropic | openai | google
 EMBEDDING_MODEL = config("EMBEDDING_MODEL", default="text-embedding-3-small")
 EMBEDDING_DIM = config("EMBEDDING_DIM", default=1536, cast=int)
 

@@ -78,7 +78,7 @@ class LLMClient:
         """Uses Google's free-tier Gemini API via plain REST (no extra SDK dependency)."""
         import requests
 
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
         body = {
             "system_instruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],

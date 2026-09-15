@@ -5,7 +5,7 @@ Thin, provider-agnostic wrapper around the LLM APIs used for:
   - candidate evaluation scoring
   - text embeddings for semantic job matching + RAG retrieval
 
-Swapping providers (Anthropic <-> OpenAI) only requires changing
+Swapping providers (Anthropic <-> OpenAI <-> Google) only requires changing
 `LLM_PROVIDER` in settings/.env — call sites never touch the SDKs directly.
 """
 import json
@@ -35,6 +35,8 @@ class LLMClient:
             return self._complete_anthropic(system, prompt, max_tokens)
         if self.provider == "openai":
             return self._complete_openai(system, prompt, max_tokens)
+        if self.provider == "google":
+            return self._complete_google(system, prompt, max_tokens)
         raise ValueError(f"Unknown LLM_PROVIDER: {self.provider}")
 
     def _complete_anthropic(self, system: str, prompt: str, max_tokens: int) -> str:
@@ -63,18 +65,57 @@ class LLMClient:
         )
         return response.choices[0].message.content
 
+    def _complete_google(self, system: str, prompt: str, max_tokens: int) -> str:
+        """Uses Google's free-tier Gemini API via plain REST (no extra SDK dependency)."""
+        import requests
+
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.5-flash:generateContent?key={settings.GOOGLE_API_KEY}"
+        )
+        body = {
+            "system_instruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"maxOutputTokens": max_tokens},
+        }
+        response = requests.post(url, json=body, timeout=60)
+        response.raise_for_status()
+        data = response.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+
     # ---- embeddings (used for semantic matching + RAG retrieval) -------
     def embed(self, text: str) -> list[float]:
         """Returns a dense embedding vector for `text`.
 
-        Uses OpenAI's embeddings endpoint regardless of LLM_PROVIDER, since
-        Anthropic does not currently expose a first-party embeddings API.
+        For the 'google' provider, uses Gemini's embedding model with
+        outputDimensionality pinned to settings.EMBEDDING_DIM so the vector
+        size matches the database schema regardless of provider. For
+        'anthropic', falls back to OpenAI's embeddings endpoint since
+        Anthropic doesn't expose a first-party embeddings API.
         """
+        if self.provider == "google":
+            return self._embed_google(text)
         from openai import OpenAI
 
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
         response = client.embeddings.create(model=settings.EMBEDDING_MODEL, input=text)
         return response.data[0].embedding
+
+    def _embed_google(self, text: str) -> list[float]:
+        import requests
+
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-embedding-001:embedContent?key={settings.GOOGLE_API_KEY}"
+        )
+        body = {
+            "model": "models/gemini-embedding-001",
+            "content": {"parts": [{"text": text}]},
+            "outputDimensionality": settings.EMBEDDING_DIM,
+        }
+        response = requests.post(url, json=body, timeout=60)
+        response.raise_for_status()
+        return response.json()["embedding"]["values"]
 
 
 llm_client = LLMClient()
